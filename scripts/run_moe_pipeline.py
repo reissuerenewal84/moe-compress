@@ -5,6 +5,7 @@ import argparse
 import datetime as dt
 import json
 import os
+import re
 import subprocess
 import sys
 import time
@@ -12,9 +13,10 @@ from pathlib import Path
 from typing import Any
 
 
-ROOT = Path("/Users/sero/ai/autoresearch/compress")
+ROOT = Path(__file__).resolve().parents[1]
 BUILD_CALIBRATION = ROOT / "scripts" / "build_master_calibration_bundle.py"
 RENDER_REPORT = ROOT / "scripts" / "render_reap_run_report.py"
+PLACEHOLDER_RE = re.compile(r"\{([A-Za-z0-9_]+)\}")
 
 
 def parse_args() -> argparse.Namespace:
@@ -48,6 +50,51 @@ def resolve_path(value: str, config_dir: Path) -> Path:
     return path
 
 
+def expand_string(value: str, variables: dict[str, str]) -> str:
+    expanded = value
+    for _ in range(8):
+        updated = PLACEHOLDER_RE.sub(lambda match: variables.get(match.group(1), match.group(0)), expanded)
+        if updated == expanded:
+            break
+        expanded = updated
+    return expanded
+
+
+def expand_value(value: Any, variables: dict[str, str]) -> Any:
+    if isinstance(value, str):
+        return expand_string(value, variables)
+    if isinstance(value, list):
+        return [expand_value(item, variables) for item in value]
+    if isinstance(value, dict):
+        return {key: expand_value(item, variables) for key, item in value.items()}
+    return value
+
+
+def stage_var_prefix(stage_name: str) -> str:
+    return "stage_" + re.sub(r"[^A-Za-z0-9]+", "_", stage_name).strip("_")
+
+
+def collect_stage_outputs(stage_result: dict[str, Any], variables: dict[str, str]) -> None:
+    prefix = stage_var_prefix(stage_result["name"])
+    for key in ("output_dir", "log_path", "status"):
+        value = stage_result.get(key)
+        if value is not None:
+            variables[f"{prefix}_{key}"] = str(value)
+
+    output_dir = stage_result.get("output_dir")
+    if not output_dir:
+        return
+    summary_paths = sorted(Path(output_dir).glob("*.summary.json"))
+    if not summary_paths:
+        return
+    summary_path = summary_paths[0]
+    variables[f"{prefix}_summary_json"] = str(summary_path)
+    summary = read_json(summary_path)
+    merged_output = summary.get("merged_output_jsonl")
+    if merged_output:
+        variables[f"{prefix}_merged_output_jsonl"] = str(merged_output)
+
+
 def run_subprocess(
     cmd: list[str],
     *,
@@ -75,6 +122,28 @@ def run_subprocess(
         "duration_s": round(ended - started, 3),
         "status": "ok" if process.returncode == 0 else "failed",
     }
+
+
+def materialize_json_input(
+    stage_cfg: dict[str, Any],
+    *,
+    config_key: str,
+    inline_key: str,
+    stage_dir: Path,
+    config_dir: Path,
+    file_name: str,
+) -> Path:
+    inline_payload = stage_cfg.get(inline_key)
+    path_value = stage_cfg.get(config_key)
+    if inline_payload is not None and path_value is not None:
+        raise ValueError(f"Stage cannot define both {config_key!r} and {inline_key!r}.")
+    if inline_payload is not None:
+        materialized = stage_dir / file_name
+        write_json(materialized, inline_payload)
+        return materialized
+    if path_value is not None:
+        return resolve_path(str(path_value), config_dir)
+    raise KeyError(f"Stage must define either {config_key!r} or {inline_key!r}.")
 
 
 def render_summary_markdown(state: dict[str, Any]) -> str:
@@ -112,18 +181,27 @@ def execute_stage(
     run_dir: Path,
     config_dir: Path,
     base_env: dict[str, str],
+    variables: dict[str, str],
 ) -> dict[str, Any]:
-    stage_name = stage_cfg["name"]
-    stage_type = stage_cfg["type"]
+    expanded_stage = expand_value(stage_cfg, variables)
+    stage_name = expanded_stage["name"]
+    stage_type = expanded_stage["type"]
     stage_dir = run_dir / "stages" / stage_name
     stage_dir.mkdir(parents=True, exist_ok=True)
     env = os.environ.copy()
     env.update(base_env)
-    env.update({str(key): str(value) for key, value in stage_cfg.get("env", {}).items()})
+    env.update({str(key): str(value) for key, value in expanded_stage.get("env", {}).items()})
     log_path = stage_dir / "stage.log"
 
     if stage_type == "build_calibration_bundle":
-        bundle_config = resolve_path(stage_cfg["config"], config_dir)
+        bundle_config = materialize_json_input(
+            expanded_stage,
+            config_key="config",
+            inline_key="inline_config",
+            stage_dir=stage_dir,
+            config_dir=config_dir,
+            file_name="bundle-config.json",
+        )
         out_dir = stage_dir / "output"
         cmd = [
             "uv",
@@ -136,14 +214,21 @@ def execute_stage(
             "--output-dir",
             str(out_dir),
         ]
-        if stage_cfg.get("dry_run"):
+        if expanded_stage.get("dry_run"):
             cmd.append("--dry-run")
         result = run_subprocess(cmd, cwd=config_dir, env=env, log_path=log_path)
         result["output_dir"] = str(out_dir)
         return {"name": stage_name, "type": stage_type, **result}
 
     if stage_type == "render_report":
-        manifest = resolve_path(stage_cfg["manifest"], config_dir)
+        manifest = materialize_json_input(
+            expanded_stage,
+            config_key="manifest",
+            inline_key="inline_manifest",
+            stage_dir=stage_dir,
+            config_dir=config_dir,
+            file_name="report-manifest.json",
+        )
         out_dir = stage_dir / "output"
         cmd = [
             "uv",
@@ -159,8 +244,8 @@ def execute_stage(
         return {"name": stage_name, "type": stage_type, **result}
 
     if stage_type == "command":
-        cmd = [str(part) for part in stage_cfg["cmd"]]
-        cwd = resolve_path(stage_cfg.get("cwd", "."), config_dir)
+        cmd = [str(part) for part in expanded_stage["cmd"]]
+        cwd = resolve_path(expanded_stage.get("cwd", "."), config_dir)
         result = run_subprocess(cmd, cwd=cwd, env=env, log_path=log_path)
         return {"name": stage_name, "type": stage_type, **result}
 
@@ -173,7 +258,7 @@ def main() -> None:
     config_dir = config_path.parent
     config = read_json(config_path)
 
-    run_root = Path(config.get("output_root", str(ROOT / "output")))
+    run_root = resolve_path(str(config.get("output_root", str(ROOT / "output"))), config_dir)
     pipeline_name = config["name"]
     run_dir = run_root / f"{pipeline_name}-{now_slug()}"
     run_dir.mkdir(parents=True, exist_ok=True)
@@ -190,6 +275,13 @@ def main() -> None:
     write_json(run_dir / "pipeline-state.json", state)
 
     base_env = {str(key): str(value) for key, value in config.get("env", {}).items()}
+    variables: dict[str, str] = {
+        "repo_root": str(ROOT),
+        "run_dir": str(run_dir),
+        "pipeline_name": pipeline_name,
+    }
+    for key, value in config.get("parameters", {}).items():
+        variables[str(key)] = str(value)
 
     try:
         for stage_cfg in config["stages"]:
@@ -198,8 +290,10 @@ def main() -> None:
                 run_dir=run_dir,
                 config_dir=config_dir,
                 base_env=base_env,
+                variables=variables,
             )
             state["stages"].append(stage_result)
+            collect_stage_outputs(stage_result, variables)
             write_json(run_dir / "pipeline-state.json", state)
             if stage_result["status"] != "ok":
                 state["status"] = "failed"

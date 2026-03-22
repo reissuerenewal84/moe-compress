@@ -12,7 +12,7 @@ from typing import Any
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
-            "Build a two-lane REAP calibration bundle from personal JSONL data plus "
+            "Build a two-lane REAP calibration bundle from local JSONL data plus "
             "optional public Hugging Face datasets."
         )
     )
@@ -105,7 +105,7 @@ def render_messages(messages: Any) -> str:
     return "\n\n".join(rendered)
 
 
-def extract_personal_text(payload: dict[str, Any], fields: list[str]) -> str:
+def extract_local_text(payload: dict[str, Any], fields: list[str]) -> str:
     for field in fields:
         value = payload.get(field)
         if isinstance(value, str) and value.strip():
@@ -121,10 +121,10 @@ def extract_personal_text(payload: dict[str, Any], fields: list[str]) -> str:
     return "\n\n".join(fallback_parts)
 
 
-def iter_personal_rows(personal_cfg: dict[str, Any]) -> list[dict[str, Any]]:
-    path = Path(personal_cfg["path"])
-    text_fields = personal_cfg.get("text_fields") or ["prompt_text", "text", "content"]
-    id_field = personal_cfg.get("id_field", "prompt_id")
+def iter_local_rows(local_cfg: dict[str, Any]) -> list[dict[str, Any]]:
+    path = Path(local_cfg["path"])
+    text_fields = local_cfg.get("text_fields") or ["prompt_text", "text", "content"]
+    id_field = local_cfg.get("id_field", "prompt_id")
     rows: list[dict[str, Any]] = []
     with path.open("r", encoding="utf-8") as handle:
         for line_no, line in enumerate(handle, start=1):
@@ -134,10 +134,10 @@ def iter_personal_rows(personal_cfg: dict[str, Any]) -> list[dict[str, Any]]:
             payload = json.loads(raw)
             if not isinstance(payload, dict):
                 continue
-            text = extract_personal_text(payload, text_fields).strip()
+            text = extract_local_text(payload, text_fields).strip()
             if not text:
                 continue
-            row_id = str(payload.get(id_field) or f"personal-{line_no}")
+            row_id = str(payload.get(id_field) or f"local-{line_no}")
             rows.append(
                 {
                     "row_id": row_id,
@@ -149,7 +149,7 @@ def iter_personal_rows(personal_cfg: dict[str, Any]) -> list[dict[str, Any]]:
     return rows
 
 
-def select_personal_rows(
+def select_local_rows(
     rows: list[dict[str, Any]],
     *,
     selection: str,
@@ -349,7 +349,7 @@ def write_bundle_markdown(path: Path, summary: dict[str, Any]) -> None:
         f"# {summary['bundle_name']}",
         "",
         f"- Status: `{summary['status']}`",
-        f"- Personal dataset: `{summary['personal_dataset_path']}`",
+        f"- Local dataset: `{summary['local_dataset_path']}`",
         f"- Output directory: `{summary['output_dir']}`",
         f"- Total planned rows: `{summary['totals']['planned_rows']}`",
         f"- Total built rows: `{summary['totals']['built_rows']}`",
@@ -379,18 +379,23 @@ def write_bundle_markdown(path: Path, summary: dict[str, Any]) -> None:
     path.write_text("\n".join(sections) + "\n", encoding="utf-8")
 
 
-def build_bundle(config: dict[str, Any], output_dir: Path, dry_run: bool) -> dict[str, Any]:
+def build_bundle(config: dict[str, Any], output_dir: Path, dry_run: bool, config_dir: Path) -> dict[str, Any]:
     seed = int(config.get("seed", 7))
     bundle_name = str(config["name"])
-    personal_cfg = config["personal_dataset"]
-    personal_rows = [] if dry_run else iter_personal_rows(personal_cfg)
+    local_cfg = dict(config["local_dataset"])
+    local_dataset_path = str(local_cfg["path"])
+    local_path = Path(local_dataset_path)
+    if not local_path.is_absolute():
+        local_path = (config_dir / local_path).resolve()
+    local_cfg["path"] = str(local_path)
+    local_rows = [] if dry_run else iter_local_rows(local_cfg)
 
     bundle_summary: dict[str, Any] = {
         "schema_version": 1,
         "bundle_name": bundle_name,
         "status": "dry_run" if dry_run else "ok",
         "seed": seed,
-        "personal_dataset_path": personal_cfg["path"],
+        "local_dataset_path": local_dataset_path,
         "output_dir": str(output_dir),
         "lanes": [],
         "totals": {"planned_rows": 0, "built_rows": 0, "estimated_tokens": 0},
@@ -415,22 +420,22 @@ def build_bundle(config: dict[str, Any], output_dir: Path, dry_run: bool) -> dic
         for source_index, source_cfg in enumerate(lane_cfg["sources"], start=1):
             source_kind = source_cfg["type"]
             source_seed = seed + lane_index * 100 + source_index
-            if source_kind == "personal":
+            if source_kind == "local":
                 rows_requested = int(source_cfg.get("max_rows") or 0)
                 if dry_run:
                     estimated_tokens = int(source_cfg.get("max_total_tokens") or 0)
                     source_summary = {
-                        "source_kind": "personal",
-                        "source": source_cfg.get("label", "personal"),
+                        "source_kind": "local_jsonl",
+                        "source": source_cfg.get("label", "local"),
                         "selection": source_cfg.get("selection", "first"),
                         "rows_requested": rows_requested,
                         "rows_built": rows_requested,
                         "estimated_tokens": estimated_tokens,
-                        "input_rows_hint": int(personal_cfg.get("input_rows_hint") or 0),
+                        "input_rows_hint": int(local_cfg.get("input_rows_hint") or 0),
                     }
                 else:
-                    selected, personal_summary = select_personal_rows(
-                        personal_rows,
+                    selected, local_summary = select_local_rows(
+                        local_rows,
                         selection=source_cfg.get("selection", "first"),
                         max_rows=source_cfg.get("max_rows"),
                         max_total_tokens=source_cfg.get("max_total_tokens"),
@@ -438,12 +443,12 @@ def build_bundle(config: dict[str, Any], output_dir: Path, dry_run: bool) -> dic
                         seed=source_seed,
                     )
                     source_summary = {
-                        "source_kind": "personal",
-                        "source": source_cfg.get("label", "personal"),
-                        "selection": personal_summary["selection"],
+                        "source_kind": "local_jsonl",
+                        "source": source_cfg.get("label", "local"),
+                        "selection": local_summary["selection"],
                         "rows_requested": rows_requested,
-                        "rows_built": personal_summary["selected_rows"],
-                        "estimated_tokens": personal_summary["selected_tokens"],
+                        "rows_built": local_summary["selected_rows"],
+                        "estimated_tokens": local_summary["selected_tokens"],
                     }
                     for row in selected:
                         built = BuiltRow(
@@ -451,10 +456,10 @@ def build_bundle(config: dict[str, Any], output_dir: Path, dry_run: bool) -> dic
                             text=row["text"],
                             estimated_tokens=row["estimated_tokens"],
                             lane=lane_name,
-                            source_kind="personal",
-                            source_dataset="personal",
+                            source_kind="local_jsonl",
+                            source_dataset="local_jsonl",
                             source_config=None,
-                            source_label=source_cfg.get("label", "personal"),
+                            source_label=source_cfg.get("label", "local"),
                             extra={},
                         )
                         lane_rows.append(built.to_json())
@@ -506,10 +511,11 @@ def build_bundle(config: dict[str, Any], output_dir: Path, dry_run: bool) -> dic
 
 def main() -> None:
     args = parse_args()
-    config = read_json(Path(args.config))
+    config_path = Path(args.config).resolve()
+    config = read_json(config_path)
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
-    summary = build_bundle(config, output_dir, args.dry_run)
+    summary = build_bundle(config, output_dir, args.dry_run, config_path.parent)
     summary_json = output_dir / f"{summary['bundle_name']}.summary.json"
     summary_md = output_dir / f"{summary['bundle_name']}.summary.md"
     write_json(summary_json, summary)

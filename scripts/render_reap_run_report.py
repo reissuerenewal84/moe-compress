@@ -92,6 +92,7 @@ def render_markdown(report: dict[str, Any]) -> str:
     benchmarking = report["benchmarking"]
     results = report["results"]
     derived = report["derived"]
+    local_dataset_path = calibration.get("local_dataset_path") or "n/a"
 
     lane_rows = [
         [
@@ -154,7 +155,7 @@ def render_markdown(report: dict[str, Any]) -> str:
         "",
         "## Calibration bundle",
         f"- Bundle: `{calibration['bundle_name']}`",
-        f"- Personal dataset: `{calibration['personal_dataset_path']}`",
+        f"- Local dataset: `{local_dataset_path}`",
         f"- Merged workflow: `{calibration['merged_workflow']}`",
         f"- Merged processed samples: `{calibration['merged_processed_samples']}`",
         f"- Merged observed tokens: `{fmt_num(calibration['merged_observed_tokens'])}`",

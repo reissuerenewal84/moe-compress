@@ -1,20 +1,188 @@
 {
-  "name": "moe_compression_smoke",
-  "output_root": "/Users/sero/ai/autoresearch/test-output/compress-pipeline-runs",
-  "model": {
-    "label": "replace-with-your-moe"
+  "name": "moe_full_run",
+  "output_root": "../output/pipeline-runs",
+  "parameters": {
+    "model_label": "ExampleMoE-Base",
+    "base_model": "org/ExampleMoE-Base",
+    "model_path": "../models/ExampleMoE-Base",
+    "architecture": "ExampleMoEForCausalLM",
+    "local_dataset_path": "../data/local-activation-corpus.jsonl",
+    "local_dataset_input_rows_hint": "20000",
+    "pruned_hf_repo": "org/ExampleMoE-REAP",
+    "quantized_hf_repo": "org/ExampleMoE-REAP-W4A16",
+    "quant_method": "AutoRound",
+    "quant_scheme": "W4A16",
+    "prune_percents": "10,25,40",
+    "observation_command": "./vendor/run_observations.sh --model '{model_path}' --calibration '{stage_build_calibration_bundle_merged_output_jsonl}' --output '{run_dir}/artifacts/observations'",
+    "pruning_command": "./vendor/run_pruning.sh --model '{model_path}' --observations '{run_dir}/artifacts/observations' --percents '{prune_percents}' --output '{run_dir}/artifacts/pruning'",
+    "upload_pruned_command": "./vendor/upload_hf.sh --input '{run_dir}/artifacts/pruning' --repo '{pruned_hf_repo}'",
+    "quantization_command": "./vendor/run_quantization.sh --input '{run_dir}/artifacts/pruning' --method '{quant_method}' --scheme '{quant_scheme}' --output '{run_dir}/artifacts/quantization'",
+    "upload_quantized_command": "./vendor/upload_hf.sh --input '{run_dir}/artifacts/quantization' --repo '{quantized_hf_repo}'",
+    "benchmark_command": "./vendor/run_benchmarks.sh --model '{quantized_hf_repo}' --output '{run_dir}/artifacts/benchmarks'",
+    "assemble_manifest_command": "./vendor/write_normalized_manifest.sh --pipeline-config '{run_dir}/pipeline-config.json' --pipeline-state '{run_dir}/pipeline-state.json' --output '{run_dir}/normalized_run_manifest.json'"
   },
   "stages": [
     {
-      "name": "build_calibration_plan",
+      "name": "build_calibration_bundle",
       "type": "build_calibration_bundle",
-      "config": "master_calibration_bundle.example.json",
-      "dry_run": true
+      "inline_config": {
+        "name": "master_code_agentic_v1",
+        "seed": 7,
+        "local_dataset": {
+          "path": "{local_dataset_path}",
+          "input_rows_hint": "{local_dataset_input_rows_hint}",
+          "text_fields": [
+            "prompt_text",
+            "text",
+            "content"
+          ],
+          "id_field": "prompt_id"
+        },
+        "lanes": [
+          {
+            "name": "long_context",
+            "description": "Longest local trajectories for long-context observation coverage.",
+            "sources": [
+              {
+                "type": "local",
+                "label": "local_long",
+                "selection": "longest",
+                "max_rows": 50,
+                "max_total_tokens": 819200,
+                "max_tokens_per_row": 16384
+              }
+            ]
+          },
+          {
+            "name": "short_mix",
+            "description": "Shortest local prompts plus public code and tool-use coverage.",
+            "sources": [
+              {
+                "type": "local",
+                "label": "local_short",
+                "selection": "shortest",
+                "max_rows": 15000,
+                "max_total_tokens": 15360000,
+                "max_tokens_per_row": 1024
+              },
+              {
+                "type": "huggingface",
+                "label": "evol_codealpaca",
+                "dataset": "theblackcat102/evol-codealpaca-v1",
+                "rows": 100,
+                "selection": "random"
+              },
+              {
+                "type": "huggingface",
+                "label": "xlam_function_calling",
+                "dataset": "Salesforce/xlam-function-calling-60k",
+                "rows": 100,
+                "selection": "random"
+              },
+              {
+                "type": "huggingface",
+                "label": "swe_smith_trajectories",
+                "dataset": "SWE-bench/SWE-smith-trajectories",
+                "config": "tool",
+                "rows": 100,
+                "selection": "random"
+              },
+              {
+                "type": "huggingface",
+                "label": "mixture_of_thoughts_code",
+                "dataset": "open-r1/Mixture-of-Thoughts",
+                "config": "code",
+                "rows": 100,
+                "selection": "random"
+              },
+              {
+                "type": "huggingface",
+                "label": "mixture_of_thoughts_math",
+                "dataset": "open-r1/Mixture-of-Thoughts",
+                "config": "math",
+                "rows": 100,
+                "selection": "random"
+              },
+              {
+                "type": "huggingface",
+                "label": "mixture_of_thoughts_science",
+                "dataset": "open-r1/Mixture-of-Thoughts",
+                "config": "science",
+                "rows": 100,
+                "selection": "random"
+              }
+            ]
+          }
+        ]
+      }
     },
     {
-      "name": "render_working_w4a16_report",
+      "name": "observations",
+      "type": "command",
+      "cmd": [
+        "zsh",
+        "-lc",
+        "{observation_command}"
+      ]
+    },
+    {
+      "name": "pruning",
+      "type": "command",
+      "cmd": [
+        "zsh",
+        "-lc",
+        "{pruning_command}"
+      ]
+    },
+    {
+      "name": "upload_pruned_to_hf",
+      "type": "command",
+      "cmd": [
+        "zsh",
+        "-lc",
+        "{upload_pruned_command}"
+      ]
+    },
+    {
+      "name": "quantization",
+      "type": "command",
+      "cmd": [
+        "zsh",
+        "-lc",
+        "{quantization_command}"
+      ]
+    },
+    {
+      "name": "upload_quantized_to_hf",
+      "type": "command",
+      "cmd": [
+        "zsh",
+        "-lc",
+        "{upload_quantized_command}"
+      ]
+    },
+    {
+      "name": "benchmarking",
+      "type": "command",
+      "cmd": [
+        "zsh",
+        "-lc",
+        "{benchmark_command}"
+      ]
+    },
+    {
+      "name": "assemble_run_manifest",
+      "type": "command",
+      "cmd": [
+        "zsh",
+        "-lc",
+        "{assemble_manifest_command}"
+      ]
+    },
+    {
+      "name": "render_report",
       "type": "render_report",
-      "manifest": "glm46_w4a16_working_manifest.json"
+      "manifest": "{run_dir}/normalized_run_manifest.json"
     }
   ]
 }

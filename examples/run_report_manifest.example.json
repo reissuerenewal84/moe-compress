@@ -1,0 +1,192 @@
+{
+  "title": "Example MoE Compression Run",
+  "subtitle": "Normalized report manifest for one full observation, pruning, publishing, quantization, and benchmarking lane.",
+  "model": {
+    "label": "ExampleMoE-Base",
+    "base_model": "org/ExampleMoE-Base",
+    "weights_path": "../models/ExampleMoE-Base",
+    "architecture": "ExampleMoEForCausalLM",
+    "total_layers": 64,
+    "moe_layers": 48,
+    "experts_per_layer": 64,
+    "experts_per_token": 8
+  },
+  "calibration": {
+    "bundle_name": "master_code_agentic_v1",
+    "local_dataset_path": "../data/local-activation-corpus.jsonl",
+    "merged_workflow": "master_code_agentic_v1",
+    "merged_processed_samples": 15650,
+    "merged_observed_tokens": 1140760,
+    "lanes": [
+      {
+        "name": "long_context",
+        "selection": "longest",
+        "input_rows": 50,
+        "processed_samples": 50,
+        "max_tokens": 16384,
+        "observed_tokens": 819200
+      },
+      {
+        "name": "short_mix",
+        "selection": "shortest_plus_public_mix",
+        "input_rows": 15600,
+        "processed_samples": 15600,
+        "max_tokens": 1024,
+        "observed_tokens": 321560
+      }
+    ],
+    "public_mix": [
+      {
+        "dataset": "theblackcat102/evol-codealpaca-v1",
+        "config": "default",
+        "rows": 100
+      },
+      {
+        "dataset": "Salesforce/xlam-function-calling-60k",
+        "config": "default",
+        "rows": 100
+      },
+      {
+        "dataset": "SWE-bench/SWE-smith-trajectories",
+        "config": "tool",
+        "rows": 100
+      },
+      {
+        "dataset": "open-r1/Mixture-of-Thoughts",
+        "config": "code",
+        "rows": 100
+      },
+      {
+        "dataset": "open-r1/Mixture-of-Thoughts",
+        "config": "math",
+        "rows": 100
+      },
+      {
+        "dataset": "open-r1/Mixture-of-Thoughts",
+        "config": "science",
+        "rows": 100
+      }
+    ]
+  },
+  "pruning": {
+    "observation_artifact": "../artifacts/observations/observations.pt",
+    "variants": [
+      {
+        "name": "reap_10pct",
+        "experts_before": 64,
+        "experts_pruned": 6,
+        "experts_retained": 58,
+        "status": "ok"
+      },
+      {
+        "name": "reap_25pct",
+        "experts_before": 64,
+        "experts_pruned": 16,
+        "experts_retained": 48,
+        "status": "ok"
+      },
+      {
+        "name": "reap_40pct",
+        "experts_before": 64,
+        "experts_pruned": 26,
+        "experts_retained": 38,
+        "status": "ok"
+      }
+    ]
+  },
+  "quantization": {
+    "attempts": [
+      {
+        "name": "reap_25pct_w4a16",
+        "method": "AutoRound",
+        "status": "ok",
+        "note": "Validated BF16 prune before quantization, then exported W4A16."
+      }
+    ]
+  },
+  "publishing": {
+    "status": "ok",
+    "artifact_repo": "https://huggingface.co/org/ExampleMoE-Run-Artifacts",
+    "publish_manifest_path": "../artifacts/publish/publish_manifest.json",
+    "model_repos": [
+      "org/ExampleMoE-REAP",
+      "org/ExampleMoE-REAP-W4A16"
+    ]
+  },
+  "benchmarking": {
+    "runtime_rows": [
+      {
+        "variant": "base_bf16",
+        "status": "ok",
+        "gpu_gib": 73.2,
+        "cpu_gib": 48.5,
+        "ttft_s": 1.94,
+        "prefill_toks_per_s": 31.4,
+        "generation_toks_per_s": 6.1,
+        "note": "Reference base run."
+      },
+      {
+        "variant": "reap_25pct_bf16",
+        "status": "ok",
+        "gpu_gib": 59.8,
+        "cpu_gib": 42.7,
+        "ttft_s": 1.61,
+        "prefill_toks_per_s": 35.2,
+        "generation_toks_per_s": 6.9,
+        "note": "BF16 prune benchmarked before quantization."
+      },
+      {
+        "variant": "reap_25pct_w4a16",
+        "status": "ok",
+        "gpu_gib": 34.6,
+        "cpu_gib": 25.3,
+        "ttft_s": 1.22,
+        "prefill_toks_per_s": 42.8,
+        "generation_toks_per_s": 8.4,
+        "note": "Quantized runtime target."
+      }
+    ],
+    "accuracy": {
+      "overall_accuracy": 0.87,
+      "coherence_rate": 1.0,
+      "total_samples": 20,
+      "avg_request_time_s": 8.3
+    },
+    "gates": [
+      {
+        "gate": "original_model_runs",
+        "status": "pass",
+        "summary": "Base model loads and generates."
+      },
+      {
+        "gate": "pruned_bf16_runs",
+        "status": "pass",
+        "summary": "Pruned BF16 checkpoint loads and generates."
+      },
+      {
+        "gate": "quantized_model_runs",
+        "status": "pass",
+        "summary": "Quantized checkpoint loads and generates."
+      },
+      {
+        "gate": "publish_verified",
+        "status": "pass",
+        "summary": "Target Hugging Face repos contain expected files."
+      }
+    ]
+  },
+  "results": {
+    "headline_findings": [
+      "The split calibration bundle preserved both long-context and short-turn behavior.",
+      "The BF16 prune was benchmarked before quantization, so regressions can be attributed cleanly.",
+      "The W4A16 export delivered the best memory footprint and runtime throughput in this example lane."
+    ]
+  },
+  "source_artifacts": [
+    "../artifacts/observations/observations.pt",
+    "../artifacts/pruning/",
+    "../artifacts/quantization/",
+    "../artifacts/benchmarks/",
+    "../artifacts/publish/publish_manifest.json"
+  ]
+}
