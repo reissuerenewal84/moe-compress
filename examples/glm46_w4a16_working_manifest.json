@@ -1,0 +1,124 @@
+{
+  "title": "GLM 4.6 REAP W4A16 Working Reference",
+  "subtitle": "A model-agnostic example manifest for a published working W4A16 quantization.",
+  "model": {
+    "label": "GLM-4.6-REAP-218B-A32B-W4A16-AutoRound",
+    "base_model": "cerebras/GLM-4.6-REAP-218B-A32B",
+    "weights_path": "https://huggingface.co/0xSero/GLM-4.6-REAP-218B-A32B-W4A16-AutoRound",
+    "architecture": "glm4_moe",
+    "total_layers": null,
+    "moe_layers": null,
+    "experts_per_layer": null,
+    "experts_per_token": null
+  },
+  "calibration": {
+    "bundle_name": "glm47_reap_calibration_v2",
+    "personal_dataset_path": "n/a",
+    "merged_workflow": "combined_calibration_mix",
+    "merged_processed_samples": 1360,
+    "merged_observed_tokens": null,
+    "lanes": [
+      {
+        "name": "combined_mix",
+        "selection": "reproducible public recipe",
+        "input_rows": 1360,
+        "processed_samples": 1360,
+        "max_tokens": null,
+        "observed_tokens": null
+      }
+    ],
+    "public_mix": [
+      {
+        "dataset": "theblackcat102/evol-codealpaca-v1",
+        "rows": 700
+      },
+      {
+        "dataset": "Salesforce/xlam-function-calling-60k",
+        "rows": 330
+      },
+      {
+        "dataset": "SWE-bench/SWE-smith-trajectories",
+        "rows": 330
+      }
+    ]
+  },
+  "pruning": {
+    "observation_artifact": "cerebras/GLM-4.6-REAP-218B-A32B",
+    "variants": [
+      {
+        "name": "GLM-4.6-REAP-218B-A32B",
+        "experts_before": null,
+        "experts_pruned": null,
+        "experts_retained": null,
+        "status": "base REAP checkpoint"
+      }
+    ]
+  },
+  "quantization": {
+    "attempts": [
+      {
+        "name": "GLM-4.6-REAP-218B-A32B-W4A16-AutoRound",
+        "method": "AutoRound W4A16",
+        "status": "ok",
+        "note": "Published working W4A16 checkpoint; model card reports vLLM/SGLang compatibility and about 436GB to 116GB size reduction."
+      }
+    ]
+  },
+  "publishing": {
+    "status": "published",
+    "artifact_repo": "https://huggingface.co/0xSero/GLM-4.6-REAP-218B-A32B-W4A16-AutoRound",
+    "publish_manifest_path": "https://huggingface.co/0xSero/GLM-4.6-REAP-218B-A32B-W4A16-AutoRound",
+    "model_repos": [
+      "0xSero/GLM-4.6-REAP-218B-A32B-W4A16-AutoRound"
+    ]
+  },
+  "benchmarking": {
+    "runtime_rows": [
+      {
+        "variant": "GLM-4.6-REAP-218B-A32B-W4A16-AutoRound",
+        "status": "published_working_reference",
+        "gpu_gib": null,
+        "cpu_gib": null,
+        "ttft_s": null,
+        "prefill_toks_per_s": null,
+        "generation_toks_per_s": null,
+        "note": "Working W4A16 reference with published deployment claim for 8x RTX 3090 or 4x RTX 4090. This example manifest does not bundle local benchmark JSON."
+      }
+    ],
+    "accuracy": {
+      "overall_accuracy": null,
+      "coherence_rate": null,
+      "total_samples": null,
+      "avg_request_time_s": null
+    },
+    "gates": [
+      {
+        "gate": "quantization-valid",
+        "status": "green",
+        "summary": "Published W4A16 checkpoint exists with explicit model-card quantization metadata."
+      },
+      {
+        "gate": "publish-valid",
+        "status": "green",
+        "summary": "The Hugging Face repo is live and publicly accessible."
+      },
+      {
+        "gate": "runtime-bench-valid",
+        "status": "yellow",
+        "summary": "The model card claims vLLM and SGLang compatibility, but this example manifest does not bundle local benchmark JSON."
+      }
+    ]
+  },
+  "results": {
+    "headline_findings": [
+      "This is a real working W4A16 example rather than a failed quantization lane.",
+      "The published checkpoint is 0xSero/GLM-4.6-REAP-218B-A32B-W4A16-AutoRound.",
+      "The model card states a size reduction of about 436GB to 116GB and claims deployment on 8x RTX 3090 or 4x RTX 4090.",
+      "The calibration recipe is explicitly documented as 700 evol-codealpaca-v1, 330 xlam-function-calling-60k, and 330 SWE-smith-trajectories samples.",
+      "This example proves why the compress schema must separate quantization validity from local benchmark completeness."
+    ]
+  },
+  "source_artifacts": [
+    "https://huggingface.co/0xSero/GLM-4.6-REAP-218B-A32B-W4A16-AutoRound"
+  ]
+}

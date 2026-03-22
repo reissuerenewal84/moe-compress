@@ -1,0 +1,223 @@
+{
+  "title": "The REAP Cookbook",
+  "subtitle": "A practical guide to running frontier models on consumer hardware, grounded in the Nemotron reference lane.",
+  "model": {
+    "label": "NVIDIA Nemotron 3 Super 120B A12B BF16",
+    "base_model": "nvidia/NVIDIA-Nemotron-3-Super-120B-A12B-BF16",
+    "weights_path": "/mnt/llm_models/NVIDIA-Nemotron-3-Super-120B-A12B-BF16",
+    "architecture": "NemotronHForCausalLM",
+    "total_layers": 88,
+    "moe_layers": 40,
+    "experts_per_layer": 512,
+    "experts_per_token": 22
+  },
+  "calibration": {
+    "bundle_name": "master_code_agentic_v1",
+    "personal_dataset_path": "/home/ser/reap-expert-swap-reap/input-live/personal-activation-corpus-live-20260309.jsonl",
+    "merged_workflow": "nemotron_super_merged_long50_short15120_v2",
+    "merged_processed_samples": 90,
+    "merged_observed_tokens": 1140760,
+    "lanes": [
+      {
+        "name": "long_context_personal",
+        "selection": "longest",
+        "input_rows": 37304,
+        "processed_samples": 50,
+        "max_tokens": 16384,
+        "observed_tokens": 819200
+      },
+      {
+        "name": "short_mix",
+        "selection": "shortest + public augmentation",
+        "input_rows": 15120,
+        "processed_samples": 40,
+        "max_tokens": 1024,
+        "observed_tokens": 321560
+      }
+    ],
+    "public_mix": [
+      {
+        "dataset": "theblackcat102/evol-codealpaca-v1",
+        "rows": 20
+      },
+      {
+        "dataset": "Salesforce/xlam-function-calling-60k",
+        "rows": 20
+      },
+      {
+        "dataset": "SWE-bench/SWE-smith-trajectories",
+        "config": "tool",
+        "rows": 20
+      },
+      {
+        "dataset": "open-r1/Mixture-of-Thoughts",
+        "config": "code",
+        "rows": 20
+      },
+      {
+        "dataset": "open-r1/Mixture-of-Thoughts",
+        "config": "math",
+        "rows": 20
+      },
+      {
+        "dataset": "open-r1/Mixture-of-Thoughts",
+        "config": "science",
+        "rows": 20
+      }
+    ]
+  },
+  "pruning": {
+    "observation_artifact": "observations_nemotron_merged.pt",
+    "variants": [
+      {
+        "name": "reap_25pct",
+        "experts_before": 512,
+        "experts_pruned": 128,
+        "experts_retained": 384,
+        "status": "structurally valid, runtime-fragile"
+      },
+      {
+        "name": "reap_50pct",
+        "experts_before": 512,
+        "experts_pruned": 256,
+        "experts_retained": 256,
+        "status": "structurally valid, runtime-fragile"
+      }
+    ]
+  },
+  "quantization": {
+    "attempts": [
+      {
+        "name": "autoround_original_w4a16",
+        "method": "AutoRound W4A16",
+        "status": "quantization_failed",
+        "note": "Failed before export because the model left parameters on meta device under device_map=auto."
+      },
+      {
+        "name": "autoround_reap_25pct_w4a16",
+        "method": "AutoRound W4A16",
+        "status": "quantization_failed",
+        "note": "Failed before export because tokenizer_config still referenced TokenizersBackend."
+      },
+      {
+        "name": "autoround_reap_50pct_w4a16",
+        "method": "AutoRound W4A16",
+        "status": "quantization_failed",
+        "note": "Failed before export because tokenizer_config still referenced TokenizersBackend."
+      }
+    ]
+  },
+  "publishing": {
+    "status": "draft_manifest_prepared",
+    "artifact_repo": "0xSero/nemotron-super-reap-artifacts-draft",
+    "publish_manifest_path": "/Users/sero/ai/autoresearch/nemotron-super/hf_publish/20260319-181856/publish_manifest.json",
+    "model_repos": [
+      "0xSero/NVIDIA-Nemotron-3-Super-120B-A12B-BF16-REAP-25pct-draft",
+      "0xSero/NVIDIA-Nemotron-3-Super-120B-A12B-BF16-REAP-50pct-draft"
+    ]
+  },
+  "benchmarking": {
+    "runtime_rows": [
+      {
+        "variant": "original_1gpu_plain_customprompt",
+        "status": "ok",
+        "gpu_gib": 22.968,
+        "cpu_gib": 28.037,
+        "ttft_s": 20.115897178649902,
+        "prefill_toks_per_s": 21.52526413087687,
+        "generation_toks_per_s": 2.5798875848102907,
+        "note": "Single custom prompt for systems explanation."
+      },
+      {
+        "variant": "original_2gpu_plain_customprompt",
+        "status": "ok",
+        "gpu_gib": 45.668,
+        "cpu_gib": 31.051,
+        "ttft_s": 13.366347312927246,
+        "prefill_toks_per_s": 32.394788932442644,
+        "generation_toks_per_s": 5.009399145954275,
+        "note": "Best plain-vLLM runtime row so far."
+      },
+      {
+        "variant": "original_8gpu_multiplex_dynamic_plan",
+        "status": "ok",
+        "gpu_gib": 180.012,
+        "cpu_gib": 43.489,
+        "ttft_s": 34.994694232940674,
+        "prefill_toks_per_s": 32.60494269231166,
+        "generation_toks_per_s": 7.589291917029801,
+        "note": "Request completed with the REAP plan loaded, but zero refreshes and no swap event."
+      },
+      {
+        "variant": "reap_25pct",
+        "status": "launch_failed",
+        "gpu_gib": null,
+        "cpu_gib": null,
+        "ttft_s": null,
+        "prefill_toks_per_s": null,
+        "generation_toks_per_s": null,
+        "note": "Launch failed in vLLM engine core initialization; API never became ready."
+      },
+      {
+        "variant": "reap_50pct",
+        "status": "launch_failed",
+        "gpu_gib": null,
+        "cpu_gib": null,
+        "ttft_s": null,
+        "prefill_toks_per_s": null,
+        "generation_toks_per_s": null,
+        "note": "Launch failed in vLLM engine core initialization; API never became ready."
+      }
+    ],
+    "accuracy": {
+      "overall_accuracy": 0.8,
+      "coherence_rate": 1.0,
+      "total_samples": 10,
+      "avg_request_time_s": 7.103289
+    },
+    "gates": [
+      {
+        "gate": "runtime-valid",
+        "status": "green",
+        "summary": "3 runtime rows completed with real TTFT, prefill, and generation metrics on the original model."
+      },
+      {
+        "gate": "accuracy-valid",
+        "status": "yellow",
+        "summary": "One small original-baseline accuracy row exists; no completed REAP benchmark rows exist."
+      },
+      {
+        "gate": "offload-valid",
+        "status": "yellow",
+        "summary": "Simulation-backed offload policy exists, but the successful runtime row recorded zero refreshes."
+      },
+      {
+        "gate": "quantization-valid",
+        "status": "red",
+        "summary": "All AutoRound variants failed before producing benchmarkable checkpoints."
+      },
+      {
+        "gate": "publish-valid",
+        "status": "yellow",
+        "summary": "Draft publish manifest exists, but benchmark-backed publish validation is still incomplete."
+      }
+    ]
+  },
+  "results": {
+    "headline_findings": [
+      "The strongest completed observation artifact is the merged REAP layerwise shard built from 50 long trajectories and 15,120 short mixed prompts, totaling 1,140,760 observed tokens.",
+      "The strongest completed clean runtime rows are original Nemotron on plain vLLM with 1 GPU + CPU offload, 2 GPU + CPU offload, and 8 GPU multiplex with the dynamic plan loaded.",
+      "The strongest offloading result remains simulation-backed: optimized static residency cuts simulated CPU-served traffic to 21.50% at 32 experts/layer and 9.13% at 64 experts/layer.",
+      "REAP-25 and REAP-50 are structurally valid but remain runtime-fragile in the served vLLM path.",
+      "AutoRound quantization did not produce benchmarkable checkpoints in this artifact window."
+    ]
+  },
+  "source_artifacts": [
+    "/Users/sero/ai/autoresearch/nemotron-super/test-output/nemotron-deep-24h-report-20260320.json",
+    "/Users/sero/ai/autoresearch/nemotron-super/test-output/nemotron-last-24h-scoreboard-20260320.json",
+    "/Users/sero/ai/autoresearch/nemotron-super/test-output/nemotron-accuracy-baseline-addendum-20260320.json",
+    "/Users/sero/ai/autoresearch/nemotron-super/test-output/nemotron-benchmark-table-20260320.json",
+    "/Users/sero/ai/autoresearch/nemotron-super/test-output/nemotron-reap25-runtimefix-status-20260320.json",
+    "/Users/sero/ai/autoresearch/nemotron-super/hf_publish/20260319-181856/publish_manifest.json"
+  ]
+}

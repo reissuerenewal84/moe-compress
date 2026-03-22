@@ -1,0 +1,96 @@
+{
+  "name": "master_code_agentic_v1",
+  "seed": 7,
+  "personal_dataset": {
+    "path": "/home/ser/reap-expert-swap-reap/input-live/personal-activation-corpus-live-20260309.jsonl",
+    "input_rows_hint": 37304,
+    "id_field": "prompt_id",
+    "text_fields": [
+      "prompt_text",
+      "text",
+      "content"
+    ]
+  },
+  "lanes": [
+    {
+      "name": "long_context_personal",
+      "description": "Longest personal trajectories to preserve long reasoning and agent loops.",
+      "sources": [
+        {
+          "type": "personal",
+          "label": "personal_long",
+          "selection": "longest",
+          "max_rows": 50,
+          "max_tokens_per_row": 16384,
+          "max_total_tokens": 819200
+        }
+      ]
+    },
+    {
+      "name": "short_mix",
+      "description": "Broad short-turn mix: shortest personal prompts plus six public datasets.",
+      "sources": [
+        {
+          "type": "personal",
+          "label": "personal_short",
+          "selection": "shortest",
+          "max_rows": 15000,
+          "max_tokens_per_row": 1024,
+          "max_total_tokens": 321560
+        },
+        {
+          "type": "huggingface",
+          "label": "evol-codealpaca-v1",
+          "dataset": "theblackcat102/evol-codealpaca-v1",
+          "rows": 100,
+          "selection": "random",
+          "max_tokens_per_row": 1024
+        },
+        {
+          "type": "huggingface",
+          "label": "xlam-function-calling-60k",
+          "dataset": "Salesforce/xlam-function-calling-60k",
+          "rows": 100,
+          "selection": "random",
+          "max_tokens_per_row": 1024
+        },
+        {
+          "type": "huggingface",
+          "label": "swe-smith-trajectories",
+          "dataset": "SWE-bench/SWE-smith-trajectories",
+          "config": "tool",
+          "rows": 100,
+          "selection": "random",
+          "max_tokens_per_row": 1024
+        },
+        {
+          "type": "huggingface",
+          "label": "mixture-of-thoughts-code",
+          "dataset": "open-r1/Mixture-of-Thoughts",
+          "config": "code",
+          "rows": 100,
+          "selection": "random",
+          "max_tokens_per_row": 1024
+        },
+        {
+          "type": "huggingface",
+          "label": "mixture-of-thoughts-math",
+          "dataset": "open-r1/Mixture-of-Thoughts",
+          "config": "math",
+          "rows": 100,
+          "selection": "random",
+          "max_tokens_per_row": 1024
+        },
+        {
+          "type": "huggingface",
+          "label": "mixture-of-thoughts-science",
+          "dataset": "open-r1/Mixture-of-Thoughts",
+          "config": "science",
+          "rows": 100,
+          "selection": "random",
+          "max_tokens_per_row": 1024
+        }
+      ]
+    }
+  ]
+}

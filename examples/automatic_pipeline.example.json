@@ -1,0 +1,20 @@
+{
+  "name": "moe_compression_smoke",
+  "output_root": "/Users/sero/ai/autoresearch/test-output/compress-pipeline-runs",
+  "model": {
+    "label": "replace-with-your-moe"
+  },
+  "stages": [
+    {
+      "name": "build_calibration_plan",
+      "type": "build_calibration_bundle",
+      "config": "master_calibration_bundle.example.json",
+      "dry_run": true
+    },
+    {
+      "name": "render_working_w4a16_report",
+      "type": "render_report",
+      "manifest": "glm46_w4a16_working_manifest.json"
+    }
+  ]
+}
